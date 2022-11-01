@@ -64,3 +64,23 @@ The following files create a custom [Custom OAuth2 Configuration][sso-superset],
 
 [tutor-shell]: https://github.com/overhangio/tutor/blob/master/docs/dev.rst#running-arbitrary-commands
 [sso-superset]: https://superset.apache.org/docs/installation/configuring-superset/#custom-oauth2-configuration
+
+## Connect Superset to the Open edX MySQL database
+
+[Connecting to a MySQL database][mysql-superset] requires adding a python dependency, which has been added for this fork to
+[requirements-openedx.txt](docker/requirements-openedx.txt).
+
+1. Login to Superset UI via SSO.
+1. Add a [new Data connection][db-superset] using the MySQL connector and the Tutor dev MySQL database credentials.
+
+    For Tutor dev, these are:
+    * Host: `tutor_dev_mysql_1`
+    * Port: `3306`
+    * Database name: `openedx`
+    * Username: `openedx`
+    * Password: use the `OPENEDX_MYSQL_PASSWORD` generated to your `$(tutor config printroot)/config.yml"`
+1. Create a [Dataset and Dashboard][dashboard-superset] as desired.
+
+[mysql-superset]: https://superset.apache.org/docs/databases/mysql
+[db-superset]: https://superset.apache.org/docs/databases/db-connection-ui/
+[dashboard-superset]: https://superset.apache.org/docs/creating-charts-dashboards/creating-your-first-dashboard/
