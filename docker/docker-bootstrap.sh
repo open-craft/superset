@@ -19,6 +19,7 @@
 set -eo pipefail
 
 REQUIREMENTS_LOCAL="/app/docker/requirements-local.txt"
+REQUIREMENTS_OPENEDX="/app/docker/requirements-openedx.txt"
 # If Cypress run – overwrite the password for admin and export env variables
 if [ "$CYPRESS_CONFIG" == "true" ]; then
     export SUPERSET_CONFIG=tests.integration_tests.superset_test_config
@@ -28,6 +29,13 @@ fi
 #
 # Make sure we have dev requirements installed
 #
+if [ -f "${REQUIREMENTS_OPENEDX}" ]; then
+  echo "Installing Open edX overrides at ${REQUIREMENTS_OPENEDX}"
+  pip install -r "${REQUIREMENTS_OPENEDX}"
+else
+  echo "Skipping Open edX overrides"
+fi
+
 if [ -f "${REQUIREMENTS_LOCAL}" ]; then
   echo "Installing local overrides at ${REQUIREMENTS_LOCAL}"
   pip install -r "${REQUIREMENTS_LOCAL}"

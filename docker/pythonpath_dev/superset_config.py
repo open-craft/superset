@@ -110,6 +110,20 @@ WEBDRIVER_BASEURL_USER_FRIENDLY = WEBDRIVER_BASEURL
 SQLLAB_CTAS_NO_LIMIT = True
 
 #
+# Optionally import superset_config_tutor_dev.py (which will have been included on
+# the PYTHONPATH) in order to allow for local settings to be overridden
+#
+try:
+    import superset_config_tutor_dev
+    from superset_config_tutor_dev import *  # noqa
+
+    logger.info(
+        f"Loaded your Docker configuration at " f"[{superset_config_tutor_dev.__file__}]"
+    )
+except ImportError:
+    pass
+
+#
 # Optionally import superset_config_docker.py (which will have been included on
 # the PYTHONPATH) in order to allow for local settings to be overridden
 #

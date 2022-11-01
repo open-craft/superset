@@ -21,3 +21,5 @@
 !.gitignore
 !superset_config.py
 !superset_config_local.example
+!openedx_sso_security_manager.py
+!superset_config_tutor_dev.py
