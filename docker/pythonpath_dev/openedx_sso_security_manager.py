@@ -1,4 +1,8 @@
+from collections import namedtuple
 import logging
+import MySQLdb
+
+from flask import current_app, session
 from superset.security import SupersetSecurityManager
 from superset.extensions import security_manager
 from superset.utils.core import get_username
@@ -7,14 +11,29 @@ from superset.utils.memoized import memoized
 
 class OpenEdxSsoSecurityManager(SupersetSecurityManager):
 
+    def set_oauth_session(self, provider, oauth_response):
+        """
+        Store the ouath token in the session for later retrieval.
+        """
+        res = super().set_oauth_session(provider, oauth_response)
+
+        # TODO: better to save to a database
+        if provider == "openedxsso":
+            session["oauth_token"] = oauth_response
+        return res
+
     def oauth_user_info(self, provider, response=None):
-        logging.debug(f"Oauth2 provider: {provider}, response={response}.")
         if provider == 'openedxsso':
-            me = self.appbuilder.sm.oauth_remotes[provider].get('api/user/v1/me').json()
+            oauth_remote = self.appbuilder.sm.oauth_remotes[provider]
+            me = oauth_remote.get('api/user/v1/me').json()
             logging.debug("me: {0}".format(me))
             username = me['username']
-            user_profile = self.appbuilder.sm.oauth_remotes[provider].get(f"api/user/v1/accounts/{username}").json()
-            logging.debug("user_profile: {0}".format(user_profile))
+
+            user_profile = oauth_remote.get(f"api/user/v1/accounts/{username}").json()
+            logging.debug(f"user_profile: {user_profile}")
+
+            user_roles = get_user_roles(username)
+            logging.debug(f"user_roles: {user_roles}")
 
             return {
                 'name': user_profile['name'],
@@ -23,36 +42,121 @@ class OpenEdxSsoSecurityManager(SupersetSecurityManager):
                 'username': user_profile['username'],
                 'first_name': '',
                 'last_name': '',
-                # FIXME: need to fetch this from an Open edX API too
-                'role_keys': ["admin"],
+                'role_keys': user_roles,
             }
 
 
-def can_view_courses():
+def get_user_roles(username):
     """
-    Fetch the list of courses for the current user.
+    Returns the Superset roles that should be associated with the given user.
+    """
+    user_access = _fetch_user_access(username)
+    logging.debug(f"user access: {user_access}")
+
+    if user_access.is_superuser:
+        return ["admin", "alpha"]
+    elif user_access.is_staff:
+        return ["alpha", "openedx"]
+    else:
+        return ["gamma", "openedx"]
+
+
+def can_view_courses(field_name='course_id'):
+    """
+    Returns SQL WHERE clause which restricts access to the courses the current user has staff access to.
     """
     username = get_username()
-    courses = _can_view_courses(username)
-    courses_in = "(" + ",".join(courses) + ")"
-    return courses_in
+    user_roles = security_manager.get_user_roles()
+    logging.debug(f"can_view_courses: {username} roles: {user_roles}")
+
+    # Superusers and global staff have access to all courses
+    if ("Admin" in user_roles) or ("Alpha" in user_roles):
+        return "1 = 1"
+
+    # Everyone else only has access if they're staff on a course.
+    courses = _get_courses(username)
+    logging.debug(f"{username} is course staff on {courses}")
+
+    # FIXME: what happens when the list of courses grows beyond what the query will handle?
+    if courses:
+        course_id_list = ", ".join(
+            f'"{course_id}"' for course_id in courses
+        )
+        return f"{field_name} in ({course_id_list})"
+    else:
+        # If you're not course staff on any courses, you don't get to see any.
+        return "1 = 0"
+
+
+UserAccess = namedtuple(
+    "UserAccess", ["username", "is_superuser", "is_staff"]
+)
+
+
+def _fetch_user_access(username):
+    """
+    Fetches the given user's access details from the Open edX User database
+    (since Open edX doesn't have an API for this).
+    """
+    cxn = _connect_openedx_db()
+    cursor = cxn.cursor()
+
+    query = "SELECT is_staff, is_superuser FROM auth_user WHERE username=%s"
+    if cursor.execute(query, (username,)):
+        (is_staff, is_superuser) = cursor.fetchone()
+        user_access = UserAccess(
+            username=username,
+            is_superuser=is_superuser,
+            is_staff=is_staff,
+        )
+    else:
+        user_access = UserAccess(
+            username=username,
+            is_superuser=False,
+            is_staff=False,
+        )
+
+    cursor.close()
+    cxn.close()
+    return user_access
+
+
+def _connect_openedx_db():
+    """
+    Return an open connection to the Open edX MySQL database.
+    """
+    mysql_credentials = {
+        'user': current_app.config.get('OPENEDX_DATABASE_USER', 'openedx'),
+        # Must be set in docker/python_path/superset_config_docker.py
+        'password': current_app.config.get('OPENEDX_DATABASE_PASSWORD'),
+        'host': current_app.config.get('OPENEDX_DATABASE_HOST', 'tutor_dev_mysql_1'),
+        'port': current_app.config.get('OPENEDX_DATABASE_PORT', 3306),
+        'database': current_app.config.get('OPENEDX_DATABASE_NAME', 'openedx'),
+    }
+    return MySQLdb.connect(**mysql_credentials)
 
 
 @memoized
-def _can_view_courses(username, access="staff", next_url=None):
+def _get_courses(username, permission="staff", next_url=None):
     """
     Returns the list of courses the current user has access to.
     """
-    # TODO: global staff users have access to all courses, but:
-    # a) we don't have an API that tells us if a user is a global staff/superuser, and
-    # b) we shouldn't ever fetch the full list of courses.
-    #
-    # FIXME: what happens when the list of courses grows beyond what the query will handle?
     courses = []
-    url = next_url or f"api/courses/v1/courses/?permissions={access}&username={username}"
 
-    # FIXME: fails with "missing token".  bugger.
-    response = security_manager.oauth_remotes["openedxsso"].get(url).json()
+    provider = session.get("oauth_provider")
+    oauth_remote = security_manager.oauth_remotes.get(provider)
+    if not oauth_remote:
+        logging.error("No OAuth2 provider? expected openedx")
+        return courses
+
+    # TODO: write/import client code to handle refreshing expired tokens.
+    token = session.get("oauth_token", {})
+    if not token:
+        logging.error("No access_token? expected one provided by openedx")
+        return courses
+
+    url = next_url or f"api/courses/v1/courses/?permissions={permission}&username={username}"
+    response = oauth_remote.get(url, token=token).json()
 
     for course in response.get('results', []):
         course_id = course.get('course_id')
@@ -61,10 +165,9 @@ def _can_view_courses(username, access="staff", next_url=None):
 
     # Recurse to iterate over all the pages of results
     if response.get("next"):
-        next_courses = _can_view_courses(username, next_url=response['next'])
+        next_courses = _get_courses(username, permission=permission, next_url=response['next'])
         for course_id in next_courses:
             courses.append(course_id)
 
-    # If you have staff access to one or more courses, you get to be an admin.
-    logging.debug(f"Courses for {username}: {courses}")
+    logging.debug(f"{username} has {permission} access to {courses}")
     return courses

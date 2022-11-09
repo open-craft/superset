@@ -31,15 +31,19 @@ OAUTH_PROVIDERS = [
 AUTH_USER_REGISTRATION = True
 
 # The default user self registration role
-AUTH_USER_REGISTRATION_ROLE = "Public"
+AUTH_USER_REGISTRATION_ROLE = "Gamma"
 
 # Should we replace ALL the user's roles each login, or only on registration?
 AUTH_ROLES_SYNC_AT_LOGIN = True
 
 # map from the values of `userinfo["role_keys"]` to a list of Superset roles
+# cf https://superset.apache.org/docs/security/#roles
 AUTH_ROLES_MAPPING = {
-    "user": ["User"],
-    "admin": ["Admin"],
+    "admin": ["Admin"],      # Superusers
+    "alpha": ["Alpha"],      # Global staff
+    "gamma": ["Gamma"],      # Course staff
+    "openedx": ["Open edX"], # Open edX datastore, manually created
+    "public": ["Public"],    # AKA anonymous users
 }
 
 from openedx_sso_security_manager import OpenEdxSsoSecurityManager, can_view_courses
