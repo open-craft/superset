@@ -9,7 +9,7 @@ Superset needs to be able to access the Open edX MySQL database. To do this in t
 1. Create `docker/pythonpath_dev/superset_config_docker.py`, and add:
 
     ```
-    # Copy the `OPENEDX_MYSQL_PASSWORD` generated to your `$(tutor config printroot)/config.yml"`
+    # Copy the `OPENEDX_MYSQL_PASSWORD` generated to your `$(tutor config printroot)/config.yml`
     OPENEDX_DATABASE_PASSWORD = "<redacted>"
     ```
 1. Start Superset, using [docker-compose-tutor-dev.yml](docker-compose-tutor-dev.yml) (a modified version of
@@ -120,7 +120,7 @@ Steps to follow:
     * Tables: `openedx.student_courseenrollment`
     * Roles: `Open edX`
     * Group Key: `courses`
-    * Clause: `{{can_view_courses()}}`
+    * Clause: `{{can_view_courses(current_username(), 'course_id')}}`
 
 To try this out:
 
@@ -129,14 +129,6 @@ To try this out:
 1. Add various users as staff members to your courses.
 1. Login to Superset as one of those staff members, and view the `Open edX Enrollment` chart created above.
    Note that it shows different course enrollment data depending on who is logged in.
-
-### Know issues
-
-[Superset caches][cache-superset] charts and result sets by default, and these caches don't take into account dynamic row-based permissions. So you have to refresh the cache in order to see different
-data for different users.
-
-This can be fixed with configuration, but might prove a detriment to performance.
-
 
 [roles-superset]: https://superset.apache.org/docs/security/#provided-roles
 [sql-templating-superset]: https://superset.apache.org/docs/installation/sql-templating/#sql-templating

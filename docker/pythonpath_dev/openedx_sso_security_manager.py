@@ -65,17 +65,27 @@ def get_user_roles(username):
         return []
 
 
-def can_view_courses(field_name='course_id'):
+ALL_COURSES = "1 = 1"
+NO_COURSES = "1 = 0"
+
+def can_view_courses(username, field_name='course_id'):
     """
     Returns SQL WHERE clause which restricts access to the courses the current user has staff access to.
     """
-    username = get_username()
-    user_roles = security_manager.get_user_roles()
+    user = security_manager.get_user_by_username(username)
+    if user:
+        user_roles = security_manager.get_user_roles(user)
+    else:
+        user_roles = []
     logging.debug(f"can_view_courses: {username} roles: {user_roles}")
+
+    # Users with no roles don't get to see any courses
+    if not user_roles:
+        return NO_COURSES
 
     # Superusers and global staff have access to all courses
     if ("Admin" in user_roles) or ("Alpha" in user_roles):
-        return "1 = 1"
+        return ALL_COURSES
 
     # Everyone else only has access if they're staff on a course.
     courses = _get_courses(username)
@@ -89,7 +99,7 @@ def can_view_courses(field_name='course_id'):
         return f"{field_name} in ({course_id_list})"
     else:
         # If you're not course staff on any courses, you don't get to see any.
-        return "1 = 0"
+        return NO_COURSES
 
 
 UserAccess = namedtuple(
