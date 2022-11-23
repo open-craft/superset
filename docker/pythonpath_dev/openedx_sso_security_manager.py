@@ -54,11 +54,15 @@ def get_user_roles(username):
     logging.debug(f"user access: {user_access}")
 
     if user_access.is_superuser:
-        return ["admin", "alpha"]
+        return ["admin", "alpha", "openedx"]
     elif user_access.is_staff:
         return ["alpha", "openedx"]
     else:
-        return ["gamma", "openedx"]
+        # User has to have staff access to one or more courses to view any content here.
+        courses = _get_courses(username)
+        if courses:
+            return ["gamma", "openedx"]
+        return []
 
 
 def can_view_courses(field_name='course_id'):
