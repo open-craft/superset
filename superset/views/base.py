@@ -31,6 +31,7 @@ from flask import (
     g,
     get_flashed_messages,
     redirect,
+    request,
     Response,
     session,
 )
@@ -209,6 +210,16 @@ class BaseSupersetView(BaseView):
             status=status,
             mimetype="application/json",
         )
+
+    def render_template(self, *args, **kwargs) -> FlaskResponse:
+        """
+        Ensures all templated "GET" requests are loaded onto the session's page history stack.
+
+        Calls update_redirect() before rendering the template.
+        """
+        if request.method == "GET":
+            self.update_redirect()
+        return super().render_template(*args, **kwargs)
 
     def render_app_template(
         self, extra_bootstrap_data: dict[str, Any] | None = None
@@ -431,6 +442,16 @@ class DeprecateModelViewMixin:
 class SupersetModelView(ModelView):
     page_size = 100
     list_widget = SupersetListWidget
+
+    def render_template(self, *args, **kwargs) -> FlaskResponse:
+        """
+        Ensures all templated "GET" requests are loaded onto the session's page history stack.
+
+        Calls update_redirect() before rendering the template.
+        """
+        if request.method == "GET":
+            self.update_redirect()
+        return super().render_template(*args, **kwargs)
 
     def render_app_template(self) -> FlaskResponse:
         payload = {
