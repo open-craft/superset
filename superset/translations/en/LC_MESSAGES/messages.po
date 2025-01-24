@@ -28,6 +28,10 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.9.1\n"
 
+#: user data, dashboard UUID HERE
+msgid "Course Dashboard"
+msgstr "[TRANS] Course Dashboard"
+
 #: superset-frontend/src/explore/components/controls/DndColumnSelectControl/Option.tsx:71
 #: superset-frontend/src/explore/components/controls/OptionControls/index.tsx:326
 msgid ""

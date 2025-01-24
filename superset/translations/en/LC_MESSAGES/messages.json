@@ -2,6 +2,7 @@
   "domain": "superset",
   "locale_data": {
     "superset": {
+      "Course Dashboard": ["[TRANS] Course Dashboard"],
       "22": [""],
       "": {
         "domain": "superset",
